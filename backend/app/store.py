@@ -4,7 +4,7 @@
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
 from app.seed import SEED_ROWS
 
@@ -14,6 +14,7 @@ class Store:
         self._tables: dict[str, list[dict[str, Any]]] = {
             name: [dict(row) for row in rows] for name, rows in SEED_ROWS.items()
         }
+        self._pending_rules: dict[str, Callable[[dict[str, Any]], bool]] = {}
 
     def module_names(self) -> list[str]:
         return sorted(self._tables)
@@ -27,6 +28,16 @@ class Store:
                 return row
         return None
 
+    def set_pending_rule(self, module: str, rule: Callable[[dict[str, Any]], bool]) -> None:
+        """业务模块登记自己的待办判定；概览与台账共用同一条口径。"""
+        self._pending_rules[module] = rule
+
+    def is_pending(self, module: str, row: dict[str, Any]) -> bool:
+        rule = self._pending_rules.get(module)
+        if rule is not None:
+            return rule(row)
+        return bool(row.get("pending"))
+
     def overview(self) -> dict[str, object]:
         modules: list[dict[str, object]] = []
         for name in self.module_names():
@@ -34,7 +45,7 @@ class Store:
             modules.append({
                 "name": name,
                 "created": len(rows),
-                "pending": sum(1 for row in rows if row.get("pending")),
+                "pending": sum(1 for row in rows if self.is_pending(name, row)),
                 "abnormal": sum(1 for row in rows if row.get("abnormal")),
             })
         cards = [
