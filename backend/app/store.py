@@ -28,14 +28,25 @@ class Store:
         return None
 
     def overview(self) -> dict[str, object]:
+        # 事故模块的结案判定在 service 里有唯一口径，惰性引入避免 store→service 循环依赖
+        from app.services.accident import is_pending, is_severe, normalize_all
+
+        normalize_all()
         modules: list[dict[str, object]] = []
         for name in self.module_names():
             rows = self.rows(name)
+            if name == "accident":
+                # 待处理/异常量与台账、看板同源，行上的旧标记不参与计数
+                pending = sum(1 for row in rows if is_pending(row))
+                abnormal = sum(1 for row in rows if is_severe(row))
+            else:
+                pending = sum(1 for row in rows if row.get("pending"))
+                abnormal = sum(1 for row in rows if row.get("abnormal"))
             modules.append({
                 "name": name,
                 "created": len(rows),
-                "pending": sum(1 for row in rows if row.get("pending")),
-                "abnormal": sum(1 for row in rows if row.get("abnormal")),
+                "pending": pending,
+                "abnormal": abnormal,
             })
         cards = [
             {"label": "业务模块", "value": len(modules)},

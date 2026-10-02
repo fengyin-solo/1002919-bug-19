@@ -3,28 +3,34 @@
     <header class="page-head">
       <div>
         <h2>运营概览</h2>
-        <p class="page-desc">汇总各业务模块的关键指标，先看总量再看异常。</p>
+        <p class="page-desc">汇总各业务模块的关键指标，先看总量再看异常；事故的待处理与已结案同一套判定。</p>
       </div>
     </header>
-    <div class="stat-row">
-      <article v-for="card in cards" :key="card.label" class="stat-card">
-        <span class="stat-label">{{ card.label }}</span>
-        <strong class="stat-value">{{ card.value }}</strong>
-      </article>
+    <div v-if="failed" class="retry-banner">
+      <span>运营概览取数失败：{{ errorMessage }}</span>
+      <button class="btn" type="button" :disabled="loading" @click="void loadOverview()">重试</button>
     </div>
-    <table class="data-table">
-      <thead>
-        <tr><th>业务模块</th><th>今日新增</th><th>待处理</th><th>异常量</th></tr>
-      </thead>
-      <tbody>
-        <tr v-for="row in moduleRows" :key="row.name">
-          <td>{{ row.name }}</td>
-          <td>{{ row.created }}</td>
-          <td>{{ row.pending }}</td>
-          <td>{{ row.abnormal }}</td>
-        </tr>
-      </tbody>
-    </table>
+    <template v-else>
+      <div class="stat-row">
+        <article v-for="card in cards" :key="card.label" class="stat-card">
+          <span class="stat-label">{{ card.label }}</span>
+          <strong class="stat-value">{{ card.value }}</strong>
+        </article>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr><th>业务模块</th><th>今日新增</th><th>待处理</th><th>异常量</th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="row in moduleRows" :key="row.name">
+            <td>{{ row.name }}</td>
+            <td>{{ row.created }}</td>
+            <td>{{ row.pending }}</td>
+            <td>{{ row.abnormal }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </template>
   </section>
 </template>
 
@@ -40,15 +46,26 @@ type Overview = {
 
 const cards = ref<Overview['cards']>([])
 const moduleRows = ref<Overview['modules']>([])
+const failed = ref(false)
+const loading = ref(false)
+const errorMessage = ref('')
 
-onMounted(async () => {
+// 取数失败时保留上次数据并提示重试，而不是静默写 0
+async function loadOverview() {
+  loading.value = true
+  failed.value = false
+  errorMessage.value = ''
   try {
     const payload = await fetchJson<Overview>('/api/overview')
     cards.value = payload.cards
     moduleRows.value = payload.modules
-  } catch {
-    cards.value = [{"label": "业务模块", "value": 0}, {"label": "今日新增", "value": 0}]
-    moduleRows.value = [{"name": "使用登记", "created": 0, "pending": 0, "abnormal": 0}, {"name": "锅炉管理", "created": 0, "pending": 0, "abnormal": 0}, {"name": "压力容器", "created": 0, "pending": 0, "abnormal": 0}, {"name": "压力管道", "created": 0, "pending": 0, "abnormal": 0}, {"name": "电梯管理", "created": 0, "pending": 0, "abnormal": 0}, {"name": "起重机械", "created": 0, "pending": 0, "abnormal": 0}, {"name": "场车管理", "created": 0, "pending": 0, "abnormal": 0}, {"name": "定期检验", "created": 0, "pending": 0, "abnormal": 0}, {"name": "维保记录", "created": 0, "pending": 0, "abnormal": 0}, {"name": "隐患排查", "created": 0, "pending": 0, "abnormal": 0}, {"name": "事故管理", "created": 0, "pending": 0, "abnormal": 0}, {"name": "作业人员", "created": 0, "pending": 0, "abnormal": 0}, {"name": "培训考核", "created": 0, "pending": 0, "abnormal": 0}, {"name": "安全阀校验", "created": 0, "pending": 0, "abnormal": 0}, {"name": "压力表检定", "created": 0, "pending": 0, "abnormal": 0}, {"name": "备件管理", "created": 0, "pending": 0, "abnormal": 0}, {"name": "应急演练", "created": 0, "pending": 0, "abnormal": 0}, {"name": "能效监测", "created": 0, "pending": 0, "abnormal": 0}, {"name": "档案管理", "created": 0, "pending": 0, "abnormal": 0}, {"name": "维保合同", "created": 0, "pending": 0, "abnormal": 0}]
+  } catch (error) {
+    failed.value = true
+    errorMessage.value = error instanceof Error ? error.message : '运营概览取数失败'
+  } finally {
+    loading.value = false
   }
-})
+}
+
+onMounted(loadOverview)
 </script>
